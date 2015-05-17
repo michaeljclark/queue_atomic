@@ -14,9 +14,9 @@ multiple producer multiple consumer c++11 atomic queue / ringbuffer
 
  - uses 3 atomic variables: version_counter, version_back and version_front
  - push_back reads 3 atomics: version_counter, version_back and version_front
-             writes 2 atomics: version_counter and version_back
+        and writes 2 atomics: version_counter and version_back
  - pop_front reads 3 atomics: version_counter, version_back and version_front
-             writes 2 atomics: version_counter and version_front
+        and writes 2 atomics: version_counter and version_front
  - version plus back or front are packed into version_back and version_front
  - version is used for conflict detection during ordered writes
  * NOTE: suffers cache line contention from concurrent reading and writing
@@ -25,9 +25,9 @@ multiple producer multiple consumer c++11 atomic queue / ringbuffer
 
  - uses 2 atomic variables: version_counter and offset_pack
  - push_back reads 2 atomics: version_counter and offset_pack
-             writes 2 atomics: version_counter and offset_pack
+         and writes 2 atomics: version_counter and offset_pack
  - pop_front reads 2 atomics: version_counter and offset_pack
-             writes 2 atomics: version_counter and offset_pack
+         and writes 2 atomics: version_counter and offset_pack
  - front, back and version are packed into offset_pack
  - version is used for conflict detection during ordered writes
  - NOTE: suffers cache line contention from concurrent reading and writing
