@@ -2,7 +2,7 @@
 
 c++11 atomic queue / ringbuffer
 
-### -O0 timings (OS X 10.10)
+### -O0 timings (OS X 10.10) Apple LLVM version 6.1.0 (clang-602.0.49)
 
 ````
 queue_implementation      threads iterations items/thread time(µs)    ops        op_time(µs)
@@ -18,7 +18,7 @@ queue_std_queue_mutex_v2  8       10         1024         918224      81920     
 queue_std_vec_mutex_v1    8       10         1024         956731      81920      11.678845
 ````
 
-### -O3 timings (OS X 10.10)
+### -O3 timings (OS X 10.10) Apple LLVM version 6.1.0 (clang-602.0.49)
 
 ````
 queue_implementation      threads iterations items/thread time(µs)    ops        op_time(µs)
