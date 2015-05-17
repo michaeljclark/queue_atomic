@@ -22,6 +22,20 @@ multiple producer multiple consumer c++11 atomic queue / ringbuffer
  - version plus back or front are packed into version_back and version_front
  - version is used for conflict detection during ordered writes
  * NOTE: suffers cache line contention from concurrent reading and writing
+ * NOTE: limited to 2147483648 items
+````
+queue_atomic_v3::is_lock_free  = 1
+queue_atomic_v3::atomic_bits   = 64
+queue_atomic_v3::offset_bits   = 32
+queue_atomic_v3::version_bits  = 32
+queue_atomic_v3::offset_shift  = 0
+queue_atomic_v3::version_shift = 32
+queue_atomic_v3::size_max      = 0x0000000080000000 (2147483648)
+queue_atomic_v3::offset_limit  = 0x0000000100000000 (4294967296)
+queue_atomic_v3::version_limit = 0x0000000100000000 (4294967296)
+queue_atomic_v3::offset_mask   = 0x00000000ffffffff
+queue_atomic_v3::version_mask  = 0x00000000ffffffff
+````
 
 ### queue_atomic_v4
 
@@ -33,6 +47,24 @@ multiple producer multiple consumer c++11 atomic queue / ringbuffer
  - front, back and version are packed into offset_pack
  - version is used for conflict detection during ordered writes
  - NOTE: suffers cache line contention from concurrent reading and writing
+ - NOTE: limited to 8388608 items
+````
+queue_atomic_v4::is_lock_free  = 1
+queue_atomic_v4::atomic_bits   = 64
+queue_atomic_v4::offset_bits   = 24
+queue_atomic_v4::version_bits  = 16
+queue_atomic_v4::front_shift   = 0
+queue_atomic_v4::back_shift    = 24
+queue_atomic_v4::version_shift = 48
+queue_atomic_v4::size_max      = 0x0000000000800000 (8388608)
+queue_atomic_v4::offset_limit  = 0x0000000001000000 (16777216)
+queue_atomic_v4::version_limit = 0x0000000000010000 (65536)
+queue_atomic_v4::offset_mask   = 0x0000000000ffffff
+queue_atomic_v4::version_mask  = 0x000000000000ffff
+queue_atomic_v4::front_pack    = 0x0000000000ffffff
+queue_atomic_v4::back_pack     = 0x0000ffffff000000
+queue_atomic_v4::version_pack  = 0xffff000000000000
+````
 
 ## Timings
 
