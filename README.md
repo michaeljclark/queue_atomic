@@ -1,3 +1,20 @@
 # queue_atomic
 
 c++11 atomic queue / ringbuffer
+
+## timings (OS X 10.10)
+
+````
+queue_implementation      num_threads iterations items_per_thread time(µs)    ops        op_time(µs)
+queue_atomic_v4           8           10         1024             17483       81920      0.213416 
+queue_atomic_v4           8           10         65536            970421      5242880    0.185093 
+queue_atomic_v4           8           64         65536            6222348     33554432   0.185440 
+queue_atomic_v4           8           16         262144           6254965     33554432   0.186412 
+queue_atomic_v3           8           10         1024             17363       81920      0.211951 
+queue_atomic_v3           8           10         65536            1053129     5242880    0.200868 
+queue_atomic_v3           8           64         65536            6845973     33554432   0.204026 
+queue_atomic_v3           8           16         262144           6855103     33554432   0.204298 
+queue_std_queue_mutex_v2  8           10         1024             918224      81920      11.208789
+queue_std_vec_mutex_v1    8           10         1024             956731      81920      11.678845
+````
+
