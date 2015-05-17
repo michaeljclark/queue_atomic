@@ -1,6 +1,8 @@
 # queue_atomic
 
-multiple producer multiple consumer c++11 atomic queue / ringbuffer
+Multiple producer multiple consumer c++11 atomic queue / ringbuffer
+
+Solves the ABA problem by packing a monotonically increasing version number into the ring buffer offsets.
 
 ## Notes
 
