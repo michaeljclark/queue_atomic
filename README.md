@@ -2,6 +2,8 @@
 
 multiple producer multiple consumer c++11 atomic queue / ringbuffer
 
+## Notes
+
 ### queue_std_vec_mutex_v1
 
  - std::mutex wrapper around std::vector
@@ -31,6 +33,8 @@ multiple producer multiple consumer c++11 atomic queue / ringbuffer
  - front, back and version are packed into offset_pack
  - version is used for conflict detection during ordered writes
  - NOTE: suffers cache line contention from concurrent reading and writing
+
+## Timings
 
 ### -O0, OS X 10.10, Apple LLVM version 6.1.0 (clang-602.0.49)
 
