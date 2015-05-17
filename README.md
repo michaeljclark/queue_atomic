@@ -1,6 +1,36 @@
 # queue_atomic
 
-c++11 atomic queue / ringbuffer
+multiple producer multiple consumer c++11 atomic queue / ringbuffer
+
+### queue_std_vec_mutex_v1
+
+ - std::mutex wrapper around std::vector
+
+### queue_std_queue_mutex_v2
+
+ - std::mutex wrapper around std::queue
+
+### queue_atomic_v3
+
+ - uses 3 atomic variables: version_counter, version_back and version_front
+ - push_back reads 3 atomics: version_counter, version_back and version_front
+             writes 2 atomics: version_counter and version_back
+ - pop_front reads 3 atomics: version_counter, version_back and version_front
+             writes 2 atomics: version_counter and version_front
+ - version plus back or front are packed into version_back and version_front
+ - version is used for conflict detection during ordered writes
+ * NOTE: suffers cache line contention from concurrent reading and writing
+
+### queue_atomic_v4
+
+ - uses 2 atomic variables: version_counter and offset_pack
+ - push_back reads 2 atomics: version_counter and offset_pack
+             writes 2 atomics: version_counter and offset_pack
+ - pop_front reads 2 atomics: version_counter and offset_pack
+             writes 2 atomics: version_counter and offset_pack
+ - front, back and version are packed into offset_pack
+ - version is used for conflict detection during ordered writes
+ - NOTE: suffers cache line contention from concurrent reading and writing
 
 ### -O0, OS X 10.10, Apple LLVM version 6.1.0 (clang-602.0.49)
 
