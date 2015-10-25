@@ -129,7 +129,7 @@ template <typename T,
           const int OFFSET_BITS = 32,
           const int VERSION_BITS = 32,
           std::memory_order load_memory_order = std::memory_order_relaxed,
-          std::memory_order consume_memory_order = std::memory_order_consume,
+          std::memory_order acquire_memory_order = std::memory_order_acquire,
           std::memory_order release_memory_order = std::memory_order_release>
 struct queue_atomic_v3
 {
@@ -380,7 +380,7 @@ struct queue_atomic_v3
                 // if successful other threads will spin until new version_front is visible
                 // if successful then write version_front
                 if (version_counter.compare_exchange_weak(last_version, front_version)) {
-                    T val = vec[offset].load(consume_memory_order);
+                    T val = vec[offset].load(acquire_memory_order);
                     version_front.store(pack, release_memory_order);
                     return val;
                 }
@@ -426,7 +426,7 @@ template <typename T,
           const int OFFSET_BITS = 24,
           const int VERSION_BITS = 16,
           std::memory_order load_memory_order = std::memory_order_relaxed,
-          std::memory_order consume_memory_order = std::memory_order_consume,
+          std::memory_order acquire_memory_order = std::memory_order_acquire,
           std::memory_order release_memory_order = std::memory_order_release>
 struct queue_atomic_v4
 {
@@ -663,7 +663,7 @@ struct queue_atomic_v4
                 // compare_exchange_weak version
                 // if success then write offset_pack
                 if (version_counter.compare_exchange_weak(last_version, version)) {
-                    T val = vec[offset].load(consume_memory_order);
+                    T val = vec[offset].load(acquire_memory_order);
                     offset_pack.store(pack, release_memory_order);
                     return val;
                 }
