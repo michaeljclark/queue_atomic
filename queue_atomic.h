@@ -219,7 +219,7 @@ struct queue_atomic_v3
     
     virtual ~queue_atomic_v3()
     {
-        delete vec;
+        delete [] vec;
     }
     
     bool empty()
@@ -514,7 +514,7 @@ struct queue_atomic_v4
     
     virtual ~queue_atomic_v4()
     {
-        delete vec;
+        delete [] vec;
     }
     
     bool empty()
