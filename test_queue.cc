@@ -4,6 +4,7 @@
 
 #include <cstdio>
 #include <cstdint>
+#include <cstdarg>
 #include <cassert>
 #include <thread>
 #include <mutex>
@@ -16,6 +17,7 @@
 
 extern void log_debug(const char* fmt, ...);
 
+#include "rdtsc.h"
 #include "queue_atomic.h"
 
 using namespace std::chrono;
@@ -154,23 +156,185 @@ void test_push_pop_threads(const char* queue_type_name, const size_t num_threads
 
 struct test_queue
 {
-    void test_queue_constants_v3()
+    
+    void test_queue_constants_v1()
     {
         const size_t qsize = 1024;
-        typedef queue_atomic_v3<void*> qtype;
+        typedef queue_atomic_v1<void*> qtype;
         qtype q(qsize);
         
-        printf("queue_atomic_v3::is_lock_free  = %u\n", q.version_counter.is_lock_free());
-        printf("queue_atomic_v3::atomic_bits   = %u\n", qtype::atomic_bits);
-        printf("queue_atomic_v3::offset_bits   = %u\n", qtype::offset_bits);
-        printf("queue_atomic_v3::version_bits  = %u\n", qtype::version_bits);
-        printf("queue_atomic_v3::offset_shift  = %u\n", qtype::offset_shift);
-        printf("queue_atomic_v3::version_shift = %u\n", qtype::version_shift);
-        printf("queue_atomic_v3::size_max      = 0x%016llx (%llu)\n", (u64)qtype::size_max, (u64)qtype::size_max);
-        printf("queue_atomic_v3::offset_limit  = 0x%016llx (%llu)\n", (u64)qtype::offset_limit, (u64)qtype::offset_limit);
-        printf("queue_atomic_v3::version_limit = 0x%016llx (%llu)\n", (u64)qtype::version_limit, (u64)qtype::version_limit);
-        printf("queue_atomic_v3::offset_mask   = 0x%016llx\n", (u64)qtype::offset_mask);
-        printf("queue_atomic_v3::version_mask  = 0x%016llx\n", (u64)qtype::version_mask);
+        printf("queue_atomic_v1::is_lock_free  = %u\n", q.version_counter.is_lock_free());
+        printf("queue_atomic_v1::atomic_bits   = %u\n", qtype::atomic_bits);
+        printf("queue_atomic_v1::offset_bits   = %u\n", qtype::offset_bits);
+        printf("queue_atomic_v1::version_bits  = %u\n", qtype::version_bits);
+        printf("queue_atomic_v1::front_shift   = %u\n", qtype::front_shift);
+        printf("queue_atomic_v1::back_shift    = %u\n", qtype::back_shift);
+        printf("queue_atomic_v1::version_shift = %u\n", qtype::version_shift);
+        printf("queue_atomic_v1::size_max      = 0x%016llx (%llu)\n", (u64)qtype::size_max, (u64)qtype::size_max);
+        printf("queue_atomic_v1::offset_limit  = 0x%016llx (%llu)\n", (u64)qtype::offset_limit, (u64)qtype::offset_limit);
+        printf("queue_atomic_v1::version_limit = 0x%016llx (%llu)\n", (u64)qtype::version_limit, (u64)qtype::version_limit);
+        printf("queue_atomic_v1::offset_mask   = 0x%016llx\n", (u64)qtype::offset_mask);
+        printf("queue_atomic_v1::version_mask  = 0x%016llx\n", (u64)qtype::version_mask);
+        printf("queue_atomic_v1::front_pack    = 0x%016llx\n", (u64)qtype::front_pack);
+        printf("queue_atomic_v1::back_pack     = 0x%016llx\n", (u64)qtype::back_pack);
+        printf("queue_atomic_v1::version_pack  = 0x%016llx\n", (u64)qtype::version_pack);
+        
+        assert(qtype::atomic_bits   == 64);
+        assert(qtype::offset_bits   == 24);
+        assert(qtype::version_bits  == 16);
+        assert(qtype::front_shift   == 0);
+        assert(qtype::back_shift    == 24);
+        assert(qtype::version_shift == 48);
+        assert(qtype::size_max      == 8388608);
+        assert(qtype::offset_limit  == 16777216);
+        assert(qtype::version_limit == 65536);
+        assert(qtype::offset_mask   == 0x00ffffff);
+        assert(qtype::version_mask  == 0x0000ffff);
+        assert(qtype::front_pack    == 0x0000000000ffffffULL);
+        assert(qtype::back_pack     == 0x0000ffffff000000ULL);
+        assert(qtype::version_pack  == 0xffff000000000000ULL);
+    }
+    
+    void test_empty_invariants_v1()
+    {
+        const size_t qsize = 1024;
+        typedef queue_atomic_v1<void*> qtype;
+        qtype q(qsize);
+        
+        assert(q.capacity() == 1024);
+        assert(q.size() == 0);
+        assert(q.empty() == true);
+        assert(q.full() == false);
+        assert(q.size_limit == 1024);
+        assert(q._last_version() == 0);
+        assert(q._version() == 0);
+        assert(q._back() == 0);
+        assert(q._front() == 1024);
+    }
+    
+    void test_push_pop_v1()
+    {
+        const size_t qsize = 4;
+        typedef queue_atomic_v1<void*> qtype;
+        qtype q(qsize);
+        
+        // check initial invariants
+        assert(q.capacity() == qsize);
+        assert(q.size() == 0);
+        assert(q.empty() == true);
+        assert(q.full() == false);
+        assert(q.size_limit == qsize);
+        assert(q._last_version() == 0);
+        assert(q._version() == 0);
+        assert(q._back() == 0);
+        assert(q._front() == qsize);
+        
+        // push_back 4 items
+        for (size_t i = 1; i <= 4; i++) {
+            assert(q.push_back((void*)i) == true);
+            assert(q._last_version() == i);
+            assert(q._version() == i);
+            assert(q._back() == i);
+            assert(q._front() == qsize);
+            assert(q.size() == i);
+            assert(q.empty() == false);
+            assert(q.full() == (i < 4 ? false : true));
+        }
+        
+        // push_back overflow test
+        assert(q.push_back((void*)5) == false);
+        assert(q._last_version() == 4);
+        assert(q._version() == 4);
+        assert(q._back() == 4);
+        assert(q._front() == qsize);
+        assert(q.size() == 4);
+        assert(q.empty() == false);
+        assert(q.full() == true);
+        
+        // pop_front 4 items
+        for (size_t i = 1; i <= 4; i++) {
+            assert(q.pop_front() == (void*)i);
+            assert(q._last_version() == 4 + i);
+            assert(q._version() == 4 + i);
+            assert(q._back() == 4);
+            assert(q._front() == 4 + i);
+            assert(q.size() == 4 - i);
+            assert(q.empty() == (i > 3 ? true : false));
+            assert(q.full() == false);
+        }
+        
+        // pop_front underflow test
+        assert(q.pop_front() == (void*)0);
+        assert(q._last_version() == 8);
+        assert(q._version() == 8);
+        assert(q._back() == 4);
+        assert(q._front() == 8);
+        assert(q.size() == 0);
+        assert(q.empty() == true);
+        assert(q.full() == false);
+        
+        // push_back 4 items
+        for (size_t i = 1; i <= 4; i++) {
+            assert(q.push_back((void*)i) == true);
+            assert(q._last_version() == 8 + i);
+            assert(q._version() == 8 + i);
+            assert(q._back() == 4 + i);
+            assert(q._front() == 8);
+            assert(q.size() == i);
+            assert(q.empty() == false);
+            assert(q.full() == (i < 4 ? false : true));
+        }
+        
+        // push_back overflow test
+        assert(q.push_back((void*)5) == false);
+        assert(q._last_version() == 12);
+        assert(q._version() == 12);
+        assert(q._back() == 8);
+        assert(q._front() == 8);
+        assert(q.size() == 4);
+        assert(q.empty() == false);
+        assert(q.full() == true);
+        
+        // pop_front 4 items
+        for (size_t i = 1; i <= 4; i++) {
+            assert(q.pop_front() == (void*)i);
+            assert(q._last_version() == 12 + i);
+            assert(q._version() == 12 + i);
+            assert(q._back() == 8);
+            assert(q._front() == 8 + i);
+            assert(q.size() == 4 - i);
+            assert(q.empty() == (i > 3 ? true : false));
+            assert(q.full() == false);
+        }
+        
+        // pop_front underflow test
+        assert(q.pop_front() == (void*)0);
+        assert(q._last_version() == 16);
+        assert(q._version() == 16);
+        assert(q._back() == 8);
+        assert(q._front() == 12);
+        assert(q.size() == 0);
+        assert(q.empty() == true);
+        assert(q.full() == false);
+    }
+
+    void test_queue_constants_v2()
+    {
+        const size_t qsize = 1024;
+        typedef queue_atomic_v2<void*> qtype;
+        qtype q(qsize);
+        
+        printf("queue_atomic_v2::is_lock_free  = %u\n", q.version_counter.is_lock_free());
+        printf("queue_atomic_v2::atomic_bits   = %u\n", qtype::atomic_bits);
+        printf("queue_atomic_v2::offset_bits   = %u\n", qtype::offset_bits);
+        printf("queue_atomic_v2::version_bits  = %u\n", qtype::version_bits);
+        printf("queue_atomic_v2::offset_shift  = %u\n", qtype::offset_shift);
+        printf("queue_atomic_v2::version_shift = %u\n", qtype::version_shift);
+        printf("queue_atomic_v2::size_max      = 0x%016llx (%llu)\n", (u64)qtype::size_max, (u64)qtype::size_max);
+        printf("queue_atomic_v2::offset_limit  = 0x%016llx (%llu)\n", (u64)qtype::offset_limit, (u64)qtype::offset_limit);
+        printf("queue_atomic_v2::version_limit = 0x%016llx (%llu)\n", (u64)qtype::version_limit, (u64)qtype::version_limit);
+        printf("queue_atomic_v2::offset_mask   = 0x%016llx\n", (u64)qtype::offset_mask);
+        printf("queue_atomic_v2::version_mask  = 0x%016llx\n", (u64)qtype::version_mask);
 
         assert(qtype::atomic_bits   == 64);
         assert(qtype::offset_bits   == 32);
@@ -184,10 +348,10 @@ struct test_queue
         assert(qtype::version_mask  == 0x00000000ffffffffULL);
     }
 
-    void test_empty_invariants_v3()
+    void test_empty_invariants_v2()
     {
         const size_t qsize = 1024;
-        typedef queue_atomic_v3<void*> qtype;
+        typedef queue_atomic_v2<void*> qtype;
         qtype q(qsize);
         
         assert(q.capacity() == 1024);
@@ -202,10 +366,10 @@ struct test_queue
         assert(q._front() == 1024);
     }
     
-    void test_push_pop_v3()
+    void test_push_pop_v2()
     {
         const size_t qsize = 4;
-        typedef queue_atomic_v3<void*> qtype;
+        typedef queue_atomic_v2<void*> qtype;
         qtype q(qsize);
 
         // check initial invariants
@@ -317,48 +481,40 @@ struct test_queue
         assert(q.full() == false);
     }
     
-    void test_queue_constants_v4()
+    void test_queue_constants_v3()
     {
         const size_t qsize = 1024;
-        typedef queue_atomic_v4<void*> qtype;
+        typedef queue_atomic_v3<void*> qtype;
         qtype q(qsize);
         
-        printf("queue_atomic_v4::is_lock_free  = %u\n", q.version_counter.is_lock_free());
-        printf("queue_atomic_v4::atomic_bits   = %u\n", qtype::atomic_bits);
-        printf("queue_atomic_v4::offset_bits   = %u\n", qtype::offset_bits);
-        printf("queue_atomic_v4::version_bits  = %u\n", qtype::version_bits);
-        printf("queue_atomic_v4::front_shift   = %u\n", qtype::front_shift);
-        printf("queue_atomic_v4::back_shift    = %u\n", qtype::back_shift);
-        printf("queue_atomic_v4::version_shift = %u\n", qtype::version_shift);
-        printf("queue_atomic_v4::size_max      = 0x%016llx (%llu)\n", (u64)qtype::size_max, (u64)qtype::size_max);
-        printf("queue_atomic_v4::offset_limit  = 0x%016llx (%llu)\n", (u64)qtype::offset_limit, (u64)qtype::offset_limit);
-        printf("queue_atomic_v4::version_limit = 0x%016llx (%llu)\n", (u64)qtype::version_limit, (u64)qtype::version_limit);
-        printf("queue_atomic_v4::offset_mask   = 0x%016llx\n", (u64)qtype::offset_mask);
-        printf("queue_atomic_v4::version_mask  = 0x%016llx\n", (u64)qtype::version_mask);
-        printf("queue_atomic_v4::front_pack    = 0x%016llx\n", (u64)qtype::front_pack);
-        printf("queue_atomic_v4::back_pack     = 0x%016llx\n", (u64)qtype::back_pack);
-        printf("queue_atomic_v4::version_pack  = 0x%016llx\n", (u64)qtype::version_pack);
+        printf("queue_atomic_v3::is_lock_free  = %u\n", q.version_counter_back.is_lock_free());
+        printf("queue_atomic_v3::atomic_bits   = %u\n", qtype::atomic_bits);
+        printf("queue_atomic_v3::offset_bits   = %u\n", qtype::offset_bits);
+        printf("queue_atomic_v3::version_bits  = %u\n", qtype::version_bits);
+        printf("queue_atomic_v3::offset_shift  = %u\n", qtype::offset_shift);
+        printf("queue_atomic_v3::version_shift = %u\n", qtype::version_shift);
+        printf("queue_atomic_v3::size_max      = 0x%016llx (%llu)\n", (u64)qtype::size_max, (u64)qtype::size_max);
+        printf("queue_atomic_v3::offset_limit  = 0x%016llx (%llu)\n", (u64)qtype::offset_limit, (u64)qtype::offset_limit);
+        printf("queue_atomic_v3::version_limit = 0x%016llx (%llu)\n", (u64)qtype::version_limit, (u64)qtype::version_limit);
+        printf("queue_atomic_v3::offset_mask   = 0x%016llx\n", (u64)qtype::offset_mask);
+        printf("queue_atomic_v3::version_mask  = 0x%016llx\n", (u64)qtype::version_mask);
         
         assert(qtype::atomic_bits   == 64);
-        assert(qtype::offset_bits   == 24);
-        assert(qtype::version_bits  == 16);
-        assert(qtype::front_shift   == 0);
-        assert(qtype::back_shift    == 24);
-        assert(qtype::version_shift == 48);
-        assert(qtype::size_max      == 8388608);
-        assert(qtype::offset_limit  == 16777216);
-        assert(qtype::version_limit == 65536);
-        assert(qtype::offset_mask   == 0x00ffffff);
-        assert(qtype::version_mask  == 0x0000ffff);
-        assert(qtype::front_pack    == 0x0000000000ffffffULL);
-        assert(qtype::back_pack     == 0x0000ffffff000000ULL);
-        assert(qtype::version_pack  == 0xffff000000000000ULL);
+        assert(qtype::offset_bits   == 32);
+        assert(qtype::version_bits  == 32);
+        assert(qtype::offset_shift  == 0);
+        assert(qtype::version_shift == 32);
+        assert(qtype::size_max      == 2147483648);
+        assert(qtype::offset_limit  == 4294967296);
+        assert(qtype::version_limit == 4294967296);
+        assert(qtype::offset_mask   == 0x00000000ffffffffULL);
+        assert(qtype::version_mask  == 0x00000000ffffffffULL);
     }
     
-    void test_empty_invariants_v4()
+    void test_empty_invariants_v3()
     {
         const size_t qsize = 1024;
-        typedef queue_atomic_v4<void*> qtype;
+        typedef queue_atomic_v3<void*> qtype;
         qtype q(qsize);
         
         assert(q.capacity() == 1024);
@@ -366,16 +522,16 @@ struct test_queue
         assert(q.empty() == true);
         assert(q.full() == false);
         assert(q.size_limit == 1024);
-        assert(q._last_version() == 0);
-        assert(q._version() == 0);
+        assert(q._back_version() == 0);
+        assert(q._front_version() == 0);
         assert(q._back() == 0);
         assert(q._front() == 1024);
     }
     
-    void test_push_pop_v4()
+    void test_push_pop_v3()
     {
         const size_t qsize = 4;
-        typedef queue_atomic_v4<void*> qtype;
+        typedef queue_atomic_v3<void*> qtype;
         qtype q(qsize);
         
         // check initial invariants
@@ -384,16 +540,16 @@ struct test_queue
         assert(q.empty() == true);
         assert(q.full() == false);
         assert(q.size_limit == qsize);
-        assert(q._last_version() == 0);
-        assert(q._version() == 0);
+        assert(q._back_version() == 0);
+        assert(q._front_version() == 0);
         assert(q._back() == 0);
         assert(q._front() == qsize);
         
         // push_back 4 items
         for (size_t i = 1; i <= 4; i++) {
             assert(q.push_back((void*)i) == true);
-            assert(q._last_version() == i);
-            assert(q._version() == i);
+            assert(q._back_version() == i);
+            assert(q._front_version() == 0);
             assert(q._back() == i);
             assert(q._front() == qsize);
             assert(q.size() == i);
@@ -403,8 +559,8 @@ struct test_queue
         
         // push_back overflow test
         assert(q.push_back((void*)5) == false);
-        assert(q._last_version() == 4);
-        assert(q._version() == 4);
+        assert(q._back_version() == 4);
+        assert(q._front_version() == 0);
         assert(q._back() == 4);
         assert(q._front() == qsize);
         assert(q.size() == 4);
@@ -414,8 +570,8 @@ struct test_queue
         // pop_front 4 items
         for (size_t i = 1; i <= 4; i++) {
             assert(q.pop_front() == (void*)i);
-            assert(q._last_version() == 4 + i);
-            assert(q._version() == 4 + i);
+            assert(q._back_version() == 4);
+            assert(q._front_version() == i);
             assert(q._back() == 4);
             assert(q._front() == 4 + i);
             assert(q.size() == 4 - i);
@@ -425,8 +581,8 @@ struct test_queue
         
         // pop_front underflow test
         assert(q.pop_front() == (void*)0);
-        assert(q._last_version() == 8);
-        assert(q._version() == 8);
+        assert(q._back_version() == 4);
+        assert(q._front_version() == 4);
         assert(q._back() == 4);
         assert(q._front() == 8);
         assert(q.size() == 0);
@@ -436,8 +592,8 @@ struct test_queue
         // push_back 4 items
         for (size_t i = 1; i <= 4; i++) {
             assert(q.push_back((void*)i) == true);
-            assert(q._last_version() == 8 + i);
-            assert(q._version() == 8 + i);
+            assert(q._back_version() == 4 + i);
+            assert(q._front_version() == 4);
             assert(q._back() == 4 + i);
             assert(q._front() == 8);
             assert(q.size() == i);
@@ -447,8 +603,8 @@ struct test_queue
         
         // push_back overflow test
         assert(q.push_back((void*)5) == false);
-        assert(q._last_version() == 12);
-        assert(q._version() == 12);
+        assert(q._back_version() == 8);
+        assert(q._front_version() == 4);
         assert(q._back() == 8);
         assert(q._front() == 8);
         assert(q.size() == 4);
@@ -458,8 +614,8 @@ struct test_queue
         // pop_front 4 items
         for (size_t i = 1; i <= 4; i++) {
             assert(q.pop_front() == (void*)i);
-            assert(q._last_version() == 12 + i);
-            assert(q._version() == 12 + i);
+            assert(q._back_version() == 8);
+            assert(q._front_version() == 4 + i);
             assert(q._back() == 8);
             assert(q._front() == 8 + i);
             assert(q.size() == 4 - i);
@@ -469,8 +625,8 @@ struct test_queue
         
         // pop_front underflow test
         assert(q.pop_front() == (void*)0);
-        assert(q._last_version() == 16);
-        assert(q._version() == 16);
+        assert(q._back_version() == 8);
+        assert(q._front_version() == 8);
         assert(q._back() == 8);
         assert(q._front() == 12);
         assert(q.size() == 0);
@@ -478,45 +634,89 @@ struct test_queue
         assert(q.full() == false);
     }
 
+    void test_push_pop_threads_vec_mutex()
+    {
+        test_push_pop_threads<int,queue_std_vec_mutex<int>>("queue_std_vec_mutex", 8, 10, 1024);
+    }
+
+    void test_push_pop_threads_queue_mutex()
+    {
+        test_push_pop_threads<int,queue_std_queue_mutex<int>>("queue_std_queue_mutex", 8, 10, 1024);
+    }
+
     void test_push_pop_threads_v1()
     {
-        test_push_pop_threads<int,queue_std_vec_mutex_v1<int>>("queue_std_vec_mutex_v1", 8, 10, 1024);
+        test_push_pop_threads<int,queue_atomic_v1<int>>("queue_atomic_v1", 8, 10, 1024);
+        test_push_pop_threads<int,queue_atomic_v1<int>>("queue_atomic_v1", 8, 10, 1024);
+        test_push_pop_threads<int,queue_atomic_v1<int>>("queue_atomic_v1", 8, 10, 65536);
+        test_push_pop_threads<int,queue_atomic_v1<int>>("queue_atomic_v1", 8, 10, 65536);
+        test_push_pop_threads<int,queue_atomic_v1<int>>("queue_atomic_v1", 8, 64, 65536);
+        test_push_pop_threads<int,queue_atomic_v1<int>>("queue_atomic_v1", 8, 64, 65536);
+        test_push_pop_threads<int,queue_atomic_v1<int>>("queue_atomic_v1", 8, 16, 262144);
+        test_push_pop_threads<int,queue_atomic_v1<int>>("queue_atomic_v1", 8, 16, 262144);
     }
 
     void test_push_pop_threads_v2()
     {
-        test_push_pop_threads<int,queue_std_queue_mutex_v2<int>>("queue_std_queue_mutex_v2", 8, 10, 1024);
+        test_push_pop_threads<int,queue_atomic_v2<int>>("queue_atomic_v2", 8, 10, 1024);
+        test_push_pop_threads<int,queue_atomic_v2<int>>("queue_atomic_v2", 8, 10, 1024);
+        test_push_pop_threads<int,queue_atomic_v2<int>>("queue_atomic_v2", 8, 10, 65536);
+        test_push_pop_threads<int,queue_atomic_v2<int>>("queue_atomic_v2", 8, 10, 65536);
+        test_push_pop_threads<int,queue_atomic_v2<int>>("queue_atomic_v2", 8, 64, 65536);
+        test_push_pop_threads<int,queue_atomic_v2<int>>("queue_atomic_v2", 8, 64, 65536);
+        test_push_pop_threads<int,queue_atomic_v2<int>>("queue_atomic_v2", 8, 16, 262144);
+        test_push_pop_threads<int,queue_atomic_v2<int>>("queue_atomic_v2", 8, 16, 262144);
     }
 
     void test_push_pop_threads_v3()
     {
         test_push_pop_threads<int,queue_atomic_v3<int>>("queue_atomic_v3", 8, 10, 1024);
+        test_push_pop_threads<int,queue_atomic_v3<int>>("queue_atomic_v3", 8, 10, 1024);
+        test_push_pop_threads<int,queue_atomic_v3<int>>("queue_atomic_v3", 8, 10, 65536);
         test_push_pop_threads<int,queue_atomic_v3<int>>("queue_atomic_v3", 8, 10, 65536);
         test_push_pop_threads<int,queue_atomic_v3<int>>("queue_atomic_v3", 8, 64, 65536);
+        test_push_pop_threads<int,queue_atomic_v3<int>>("queue_atomic_v3", 8, 64, 65536);
+        test_push_pop_threads<int,queue_atomic_v3<int>>("queue_atomic_v3", 8, 16, 262144);
         test_push_pop_threads<int,queue_atomic_v3<int>>("queue_atomic_v3", 8, 16, 262144);
     }
 
-    void test_push_pop_threads_v4()
+    void test_push_pop_threads_v1_contention()
     {
-        test_push_pop_threads<int,queue_atomic_v4<int>>("queue_atomic_v4", 8, 10, 1024);
-        test_push_pop_threads<int,queue_atomic_v4<int>>("queue_atomic_v4", 8, 10, 65536);
-        test_push_pop_threads<int,queue_atomic_v4<int>>("queue_atomic_v4", 8, 64, 65536);
-        test_push_pop_threads<int,queue_atomic_v4<int>>("queue_atomic_v4", 8, 16, 262144);
+        test_push_pop_threads<int,queue_atomic_v1<int,true>>("queue_atomic_v1:contention", 4, 1, 1024);
+    }
+    
+    void test_push_pop_threads_v2_contention()
+    {
+        test_push_pop_threads<int,queue_atomic_v2<int,true>>("queue_atomic_v2:contention", 4, 1, 1024);
+    }
+
+    void test_push_pop_threads_v3_contention()
+    {
+        test_push_pop_threads<int,queue_atomic_v3<int,true>>("queue_atomic_v3:contention", 4, 1, 1024);
     }
 };
 
 int main(int argc, const char * argv[])
 {
     test_queue tq;
+    tq.test_queue_constants_v1();
+    tq.test_empty_invariants_v1();
+    tq.test_queue_constants_v2();
+    tq.test_empty_invariants_v2();
     tq.test_queue_constants_v3();
     tq.test_empty_invariants_v3();
+    tq.test_push_pop_v1();
+    tq.test_push_pop_v2();
     tq.test_push_pop_v3();
-    tq.test_queue_constants_v4();
-    tq.test_empty_invariants_v4();
-    tq.test_push_pop_v4();
-    tq.test_push_pop_threads_v4();
-    tq.test_push_pop_threads_v3();
-    tq.test_push_pop_threads_v2();
+    tq.test_push_pop_threads_vec_mutex();
+    tq.test_push_pop_threads_queue_mutex();
     tq.test_push_pop_threads_v1();
+    tq.test_push_pop_threads_v2();
+    tq.test_push_pop_threads_v3();
+#if 0
+    tq.test_push_pop_threads_v1_contention();
+    tq.test_push_pop_threads_v2_contention();
+    tq.test_push_pop_threads_v3_contention();
+#endif
 }
 
