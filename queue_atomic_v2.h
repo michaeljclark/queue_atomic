@@ -8,13 +8,13 @@
 /*
  * queue_atomic_v2
  *
- *   - uses 3 atomic variables: version_counter, version_back and version_front
+ *   - uses 3 atomic variables: counter, version_back and version_front
  *
- *   - push_back reads 3 atomics: version_counter, version_back and version_front
- *               writes 2 atomics: version_counter and version_back
+ *   - push_back reads 3 atomics: counter, version_back and version_front
+ *               writes 2 atomics: counter and version_back
  *
- *   - pop_front reads 3 atomics: version_counter, version_back and version_front
- *               writes 2 atomics: version_counter and version_front
+ *   - pop_front reads 3 atomics: counter, version_back and version_front
+ *               writes 2 atomics: counter and version_front
  *
  *   - version plus back or front are packed into version_back and version_front
  *
@@ -59,7 +59,7 @@ struct queue_atomic_v2
     
     atomic_item_t *vec;
     const atomic_uint_t size_limit;
-    std::atomic<atomic_uint_t> version_counter __attribute__ ((aligned (64)));
+    std::atomic<atomic_uint_t> counter __attribute__ ((aligned (64)));
     std::atomic<atomic_uint_t> version_back __attribute__ ((aligned (64)));
     std::atomic<atomic_uint_t> version_front __attribute__ ((aligned (64)));
     
@@ -75,11 +75,11 @@ struct queue_atomic_v2
         return (version << version_shift) | (offset << offset_shift);
     }
     
-    static inline bool unpack_offsets(const atomic_uint_t version_counter, const atomic_uint_t back_pack, const atomic_uint_t front_pack,
+    static inline bool unpack_offsets(const atomic_uint_t counter, const atomic_uint_t back_pack, const atomic_uint_t front_pack,
                                       atomic_uint_t &last_version, atomic_uint_t &back_version, atomic_uint_t &front_version,
                                       atomic_uint_t &back_offset, atomic_uint_t &front_offset)
     {
-        last_version = version_counter & version_mask;
+        last_version = counter & version_mask;
         back_version = (back_pack >> version_shift) & version_mask;
         front_version = (front_pack >> version_shift) & version_mask;
         
@@ -94,7 +94,7 @@ struct queue_atomic_v2
     
     /* queue implementation */
     
-    atomic_uint_t _last_version()   { return version_counter & version_mask; }
+    atomic_uint_t _last_version()   { return counter & version_mask; }
     atomic_uint_t _back_version()   { return (version_back >> version_shift) & version_mask; }
     atomic_uint_t _front_version()  { return (version_front >> version_shift) & version_mask; }
     atomic_uint_t _back()           { return (version_back >> offset_shift) & offset_mask; }
@@ -104,7 +104,7 @@ struct queue_atomic_v2
     
     queue_atomic_v2(size_t size_limit) :
         size_limit(size_limit),
-        version_counter(0),
+        counter(0),
         version_back(pack_offset(0, 0)),
         version_front(pack_offset(0, size_limit))
     {
@@ -155,10 +155,10 @@ struct queue_atomic_v2
         do {
             // if front_version or back_version equals last_version then attempt push back
             atomic_uint_t last_version, back_version, front_version, back, front;
-            atomic_uint_t _version_counter = version_counter.load(relaxed_memory_order);
+            atomic_uint_t _counter = counter.load(relaxed_memory_order);
             atomic_uint_t _version_back = version_back.load(relaxed_memory_order);
             atomic_uint_t _version_front = version_front.load(relaxed_memory_order);
-            if (unpack_offsets(_version_counter, _version_back, _version_front,
+            if (unpack_offsets(_counter, _version_back, _version_front,
                                last_version, back_version, front_version, back, front))
             {
                 // if (full) return false;
@@ -173,23 +173,23 @@ struct queue_atomic_v2
                 // pack back_version and back
                 atomic_uint_t pack = pack_offset(back_version, back & (offset_limit - 1));
                 
-                // compare_exchange_weak to attempt to update the version_counter
+                // compare_exchange_weak to attempt to update the counter
                 // if successful other threads will spin until new version_back is visible
                 // if successful then write value followed by version_back
-                if (version_counter.compare_exchange_weak(last_version, back_version, std::memory_order_acq_rel)) {
+                if (counter.compare_exchange_weak(last_version, back_version, std::memory_order_acq_rel)) {
                     vec[offset].store(elem, release_memory_order);
                     version_back.store(pack, release_memory_order);
                     return true;
                 } else if (debug_contention) {
                     uint64_t _tsc = rdtsc();
                     log_debug("%s version=%llu time=%llu spin_count=%d thread:%p phase 2 contention",
-                              __func__, _version_counter, _tsc, spin_count, std::this_thread::get_id());
+                              __func__, _counter, _tsc, spin_count, std::this_thread::get_id());
                 }
             } else {
                 if (debug_contention) {
                     uint64_t _tsc = rdtsc();
                     log_debug("%s version=%llu time=%llu spin_count=%d thread:%p phase 1 contention",
-                              __func__, _version_counter, _tsc, spin_count, std::this_thread::get_id());
+                              __func__, _counter, _tsc, spin_count, std::this_thread::get_id());
                 }
             }
             
@@ -211,10 +211,10 @@ struct queue_atomic_v2
         do {
             // if front_version or back_version equals last_version then attempt pop front
             atomic_uint_t last_version, back_version, front_version, back, front;
-            atomic_uint_t _version_counter = version_counter.load(relaxed_memory_order);
+            atomic_uint_t _counter = counter.load(relaxed_memory_order);
             atomic_uint_t _version_back = version_back.load(relaxed_memory_order);
             atomic_uint_t _version_front = version_front.load(relaxed_memory_order);
-            if (unpack_offsets(_version_counter, _version_back, _version_front,
+            if (unpack_offsets(_counter, _version_back, _version_front,
                                last_version, back_version, front_version, back, front))
             {
                 // if (empty) return nullptr;
@@ -229,23 +229,23 @@ struct queue_atomic_v2
                 // pack front_version and front
                 atomic_uint_t pack = pack_offset(front_version, front & (offset_limit - 1));
                 
-                // compare_exchange_weak to attempt to update the version_counter
+                // compare_exchange_weak to attempt to update the counter
                 // if successful other threads will spin until new version_front is visible
                 // if successful then write version_front
-                if (version_counter.compare_exchange_weak(last_version, front_version, std::memory_order_acq_rel)) {
+                if (counter.compare_exchange_weak(last_version, front_version, std::memory_order_acq_rel)) {
                     T val = vec[offset].load(acquire_memory_order);
                     version_front.store(pack, release_memory_order);
                     return val;
                 } else if (debug_contention) {
                     uint64_t _tsc = rdtsc();
                     log_debug("%s version=%llu time=%llu spin_count=%d thread:%p phase 2 contention",
-                              __func__, _version_counter, _tsc, spin_count, std::this_thread::get_id());
+                              __func__, _counter, _tsc, spin_count, std::this_thread::get_id());
                 }
             } else {
                 if (debug_contention) {
                     uint64_t _tsc = rdtsc();
                     log_debug("%s version=%llu time=%llu spin_count=%d thread:%p phase 1 contention",
-                              __func__, _version_counter, _tsc, spin_count, std::this_thread::get_id());
+                              __func__, _counter, _tsc, spin_count, std::this_thread::get_id());
                 }
             }
             

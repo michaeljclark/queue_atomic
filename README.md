@@ -15,14 +15,14 @@ Implements 2-phase ordered writes by packing a monotonically increasing version 
 
 ### queue_atomic_v1
 
-- uses 2 atomic variables: version_counter and offset_pack
-- push_back reads 2 atomics: (version_counter and offset_pack)
-       and writes 2 atomics: (version_counter and offset_pack)
-- pop_front reads 2 atomics: (version_counter and offset_pack)
-       and writes 2 atomics: (version_counter and offset_pack)
-- uses monotonically increasing version during 2-phase ordered updates
-- version, front offset and back offset are packed into offset_pack
-- version is used for conflict detection during ordered writes
+- uses 2 atomic variables: counter and offset_pack
+- push_back reads 2 atomics: (counter and offset_pack)
+       and writes 2 atomics: (counter and offset_pack)
+- pop_front reads 2 atomics: (counter and offset_pack)
+       and writes 2 atomics: (counter and offset_pack)
+- uses one monotonically increasing version counter and 2-phase ordered updates
+- version counter, front offset and back offset are packed into offset_pack
+- version counter is used for conflict detection during ordered writes
 - NOTE: suffers cache line contention with concurrent push and pop
 - NOTE: limited to 8388608 items
 ````
@@ -45,15 +45,15 @@ queue_atomic_v1::version_pack  = 0xffff000000000000
 
 ### queue_atomic_v2
 
- - uses 3 atomic variables: version_counter, version_back and version_front
- - push_back reads 3 atomics: (version_counter, version_back and version_front)
-        and writes 2 atomics: (version_counter and version_back)
- - pop_front reads 3 atomics: (version_counter, version_back and version_front)
-        and writes 2 atomics: (version_counter and version_front)
- - uses monotonically increasing version during 2-phase ordered updates
- - version and back offset are packed into version_back
- - version and front offset are packed into version_front
- - version is used for conflict detection during ordered writes
+ - uses 3 atomic variables: counter, version_back and version_front
+ - push_back reads 3 atomics: (counter, version_back and version_front)
+        and writes 2 atomics: (counter and version_back)
+ - pop_front reads 3 atomics: (counter, version_back and version_front)
+        and writes 2 atomics: (counter and version_front)
+ - uses one monotonically increasing version counter and 2-phase ordered updates
+ - version counter and back offset are packed into version_back
+ - version counter and front offset are packed into version_front
+ - version counter is used for conflict detection during ordered writes
  * NOTE: suffers cache line contention with concurrent push and pop
  * NOTE: limited to 2147483648 items
 ````
@@ -72,15 +72,15 @@ queue_atomic_v2::version_mask  = 0x00000000ffffffff
 
 ### queue_atomic_v3
 
-- uses 4 atomic variables: version_counter_back, version_back, version_counter_front and version_front
-- push_back reads 3 atomics: (version_counter_back, version_back and version_front)
-       and writes 2 atomics: (version_counter_back and version_back)
-- pop_front reads 3 atomics: (version_counter_front, version_back and version_front)
-       and writes 2 atomics: (version_counter_front and version_front)
-- uses two separate monotonically increasing versions for front and back offsets
+- uses 4 atomic variables: counter_back, version_back, counter_front and version_front
+- push_back reads 3 atomics: (counter_back, version_back and version_front)
+       and writes 2 atomics: (counter_back and version_back)
+- pop_front reads 3 atomics: (counter_front, version_back and version_front)
+       and writes 2 atomics: (counter_front and version_front)
+- uses two separate monotonically increasing version counters and 2-phase ordered updates
 - completely lockless in the single producer single consumer case
-- back version_back and back offset are packed into version_back
-- back version_front and front offset are packed into version_front
+- back version counter and back offset are packed into version_back
+- front version counter and front offset are packed into version_front
 * NOTE: limited to 2147483648 items
 ````
 queue_atomic_v3::is_lock_free  = 1

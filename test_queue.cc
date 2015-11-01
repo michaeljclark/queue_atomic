@@ -166,7 +166,7 @@ struct test_queue
         typedef queue_atomic_v1<void*> qtype;
         qtype q(qsize);
         
-        printf("queue_atomic_v1::is_lock_free  = %u\n", q.version_counter.is_lock_free());
+        printf("queue_atomic_v1::is_lock_free  = %u\n", q.counter.is_lock_free());
         printf("queue_atomic_v1::atomic_bits   = %u\n", qtype::atomic_bits);
         printf("queue_atomic_v1::offset_bits   = %u\n", qtype::offset_bits);
         printf("queue_atomic_v1::version_bits  = %u\n", qtype::version_bits);
@@ -327,7 +327,7 @@ struct test_queue
         typedef queue_atomic_v2<void*> qtype;
         qtype q(qsize);
         
-        printf("queue_atomic_v2::is_lock_free  = %u\n", q.version_counter.is_lock_free());
+        printf("queue_atomic_v2::is_lock_free  = %u\n", q.counter.is_lock_free());
         printf("queue_atomic_v2::atomic_bits   = %u\n", qtype::atomic_bits);
         printf("queue_atomic_v2::offset_bits   = %u\n", qtype::offset_bits);
         printf("queue_atomic_v2::version_bits  = %u\n", qtype::version_bits);
@@ -490,7 +490,7 @@ struct test_queue
         typedef queue_atomic_v3<void*> qtype;
         qtype q(qsize);
         
-        printf("queue_atomic_v3::is_lock_free  = %u\n", q.version_counter_back.is_lock_free());
+        printf("queue_atomic_v3::is_lock_free  = %u\n", q.counter_back.is_lock_free());
         printf("queue_atomic_v3::atomic_bits   = %u\n", qtype::atomic_bits);
         printf("queue_atomic_v3::offset_bits   = %u\n", qtype::offset_bits);
         printf("queue_atomic_v3::version_bits  = %u\n", qtype::version_bits);
