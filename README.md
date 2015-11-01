@@ -97,7 +97,7 @@ queue_atomic_v3::version_mask  = 0x00000000ffffffff
 
 ## Timings
 
-- -O3, OS X 10.10, Apple LLVM version 7.0.0 (clang-700.1.76), 22nm Ivy Bridge 2.7 GHz Intel Core i7
+- -O3, OS X 10.10, Apple LLVM version 7.0.0, 22nm Ivy Bridge 2.7 GHz Intel Core i7
 
 ````
 queue_implementation      threads iterations items/thread time(µs)    ops        op_time(µs)
