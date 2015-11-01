@@ -76,12 +76,11 @@ struct queue_atomic_v2
     }
     
     static inline bool unpack_offsets(const atomic_uint_t counter, const atomic_uint_t back_pack, const atomic_uint_t front_pack,
-                                      atomic_uint_t &last_version, atomic_uint_t &back_version, atomic_uint_t &front_version,
                                       atomic_uint_t &back_offset, atomic_uint_t &front_offset)
     {
-        last_version = counter & version_mask;
-        back_version = (back_pack >> version_shift) & version_mask;
-        front_version = (front_pack >> version_shift) & version_mask;
+        atomic_uint_t last_version = counter & version_mask;
+        atomic_uint_t back_version = (back_pack >> version_shift) & version_mask;
+        atomic_uint_t front_version = (front_pack >> version_shift) & version_mask;
         
         if (back_version == last_version || front_version == last_version) {
             back_offset = (back_pack >> offset_shift) & offset_mask;
@@ -154,29 +153,28 @@ struct queue_atomic_v2
         int spin_count = 0;
         do {
             // if front_version or back_version equals last_version then attempt push back
-            atomic_uint_t last_version, back_version, front_version, back, front;
+            atomic_uint_t back, front;
             atomic_uint_t _counter = counter.load(relaxed_memory_order);
             atomic_uint_t _version_back = version_back.load(relaxed_memory_order);
             atomic_uint_t _version_front = version_front.load(relaxed_memory_order);
-            if (unpack_offsets(_counter, _version_back, _version_front,
-                               last_version, back_version, front_version, back, front))
+            if (unpack_offsets(_counter, _version_back, _version_front, back, front))
             {
                 // if (full) return false;
                 if (front == back) return false;
                 
                 // increment back_version
-                back_version = (last_version + 1) & version_mask;
+                atomic_uint_t new_back_version = (_counter + 1) & version_mask;
                 
                 // calculate store offset and update back
                 size_t offset = back++ & (size_limit - 1);
                 
                 // pack back_version and back
-                atomic_uint_t pack = pack_offset(back_version, back & (offset_limit - 1));
+                atomic_uint_t pack = pack_offset(new_back_version, back & (offset_limit - 1));
                 
                 // compare_exchange_weak to attempt to update the counter
                 // if successful other threads will spin until new version_back is visible
                 // if successful then write value followed by version_back
-                if (counter.compare_exchange_weak(last_version, back_version, std::memory_order_acq_rel)) {
+                if (counter.compare_exchange_weak(_counter, new_back_version, std::memory_order_acq_rel)) {
                     vec[offset].store(elem, release_memory_order);
                     version_back.store(pack, release_memory_order);
                     return true;
@@ -210,29 +208,28 @@ struct queue_atomic_v2
         int spin_count = 0;
         do {
             // if front_version or back_version equals last_version then attempt pop front
-            atomic_uint_t last_version, back_version, front_version, back, front;
+            atomic_uint_t back, front;
             atomic_uint_t _counter = counter.load(relaxed_memory_order);
             atomic_uint_t _version_back = version_back.load(relaxed_memory_order);
             atomic_uint_t _version_front = version_front.load(relaxed_memory_order);
-            if (unpack_offsets(_counter, _version_back, _version_front,
-                               last_version, back_version, front_version, back, front))
+            if (unpack_offsets(_counter, _version_back, _version_front, back, front))
             {
                 // if (empty) return nullptr;
                 if (front - back == size_limit) return T(0);
                 
                 // increment front_version
-                front_version = (last_version + 1) & version_mask;
+                atomic_uint_t new_front_version = (_counter + 1) & version_mask;
                 
                 // calculate offset and update front
                 size_t offset = front++ & (size_limit - 1);
                 
                 // pack front_version and front
-                atomic_uint_t pack = pack_offset(front_version, front & (offset_limit - 1));
+                atomic_uint_t pack = pack_offset(new_front_version, front & (offset_limit - 1));
                 
                 // compare_exchange_weak to attempt to update the counter
                 // if successful other threads will spin until new version_front is visible
                 // if successful then write version_front
-                if (counter.compare_exchange_weak(last_version, front_version, std::memory_order_acq_rel)) {
+                if (counter.compare_exchange_weak(_counter, new_front_version, std::memory_order_acq_rel)) {
                     T val = vec[offset].load(acquire_memory_order);
                     version_front.store(pack, release_memory_order);
                     return val;
