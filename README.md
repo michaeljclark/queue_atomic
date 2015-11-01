@@ -2,7 +2,7 @@
 
 Multiple producer multiple consumer c++11 queue / ringbuffer using C++11 atomics.
 
-Implements 2-phase ordered writes by packing a monotonically increasing version number into the queue front and back offsets (solves ABA problem). Contended case is detected due to version counter increment not being visible in front or back offsets. Front and back offsets only increase in the common case and buffer offset are calculated modulus the queue size (however the offset overflow special case is handled).
+Implements 2-phase ordered writes by packing a monotonically increasing version number into the queue front and back offsets (solves ABA problem). Contended case is detected due to version counter increment not being visible in packed front or back offsets. Front and back offsets only increase in the common case and buffer offset are calculated modulus the queue size. The offset overflow special case is handled.
 
 - queue_atomic_v3 is completely lockless in the single producer single consumer case
 - all queues can be used in multiple producer multiple consumer mode however they will spin calling std::this_thread::yield() when there is contention
