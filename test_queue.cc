@@ -18,7 +18,10 @@
 extern void log_debug(const char* fmt, ...);
 
 #include "rdtsc.h"
-#include "queue_atomic.h"
+#include "queue_atomic_v1.h"
+#include "queue_atomic_v2.h"
+#include "queue_atomic_v3.h"
+#include "queue_std_mutex.h"
 
 using namespace std::chrono;
 
@@ -634,14 +637,9 @@ struct test_queue
         assert(q.full() == false);
     }
 
-    void test_push_pop_threads_vec_mutex()
-    {
-        test_push_pop_threads<int,queue_std_vec_mutex<int>>("queue_std_vec_mutex", 8, 10, 1024);
-    }
-
     void test_push_pop_threads_queue_mutex()
     {
-        test_push_pop_threads<int,queue_std_queue_mutex<int>>("queue_std_queue_mutex", 8, 10, 1024);
+        test_push_pop_threads<int,queue_std_mutex<int>>("queue_std_mutex", 8, 10, 1024);
     }
 
     void test_push_pop_threads_v1()
@@ -711,7 +709,6 @@ int main(int argc, const char * argv[])
     tq.test_push_pop_v1();
     tq.test_push_pop_v2();
     tq.test_push_pop_v3();
-    tq.test_push_pop_threads_vec_mutex();
     tq.test_push_pop_threads_queue_mutex();
     tq.test_push_pop_threads_v1();
     tq.test_push_pop_threads_v2();

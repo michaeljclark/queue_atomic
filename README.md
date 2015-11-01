@@ -9,11 +9,7 @@ Solves the ABA problem by packing a monotonically increasing version number into
 
 ## Notes
 
-### queue_std_vec_mutex
-
- - std::mutex wrapper around std::vector
-
-### queue_std_queue_mutex
+### queue_std_mutex
 
  - std::mutex wrapper around std::queue
 
@@ -26,7 +22,7 @@ Solves the ABA problem by packing a monotonically increasing version number into
        and writes 2 atomics: version_counter and offset_pack
 - front, back and version are packed into offset_pack
 - version is used for conflict detection during ordered writes
-- NOTE: suffers cache line contention from concurrent push and pop
+- NOTE: suffers cache line contention with concurrent push and pop
 - NOTE: limited to 8388608 items
 ````
 queue_atomic_v1::is_lock_free  = 1
@@ -55,7 +51,7 @@ queue_atomic_v1::version_pack  = 0xffff000000000000
         and writes 2 atomics: version_counter and version_front
  - version plus back or front are packed into version_back and version_front
  - version is used for conflict detection during ordered writes
- * NOTE: suffers cache line contention from concurrent push and pop
+ * NOTE: suffers cache line contention with concurrent push and pop
  * NOTE: limited to 2147483648 items
 ````
 queue_atomic_v2::is_lock_free  = 1
@@ -113,8 +109,7 @@ queue_atomic_v3           8       10         1024         4711        81920     
 queue_atomic_v3           8       10         65536        190221      5242880    0.036282
 queue_atomic_v3           8       64         65536        1225404     33554432   0.036520
 queue_atomic_v3           8       16         262144       1151575     33554432   0.034320
-queue_std_queue_mutex     8       10         1024         752439      81920      9.185046 
-queue_std_vec_mutex       8       10         1024         760616      81920      9.284863
+queue_std_mutex           8       10         1024         752439      81920      9.185046 
 ````
 
 - -O3, Linux 4.2.0-amd64, GCC 5.2.1, 45nm Bloomfield 3.33GHZ GHz Intel Core i7 975
@@ -133,6 +128,5 @@ queue_atomic_v3           8       10         1024         8022        81920     
 queue_atomic_v3           8       10         65536        505085      5242880    0.096337
 queue_atomic_v3           8       64         65536        3182992     33554432   0.094861
 queue_atomic_v3           8       16         262144       3259350     33554432   0.097136
-queue_std_queue_mutex     8       10         1024         25139       81920      0.306873
-queue_std_vec_mutex       8       10         1024         24075       81920      0.293884
+queue_std_mutex           8       10         1024         25139       81920      0.306873
 ````
