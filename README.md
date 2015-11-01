@@ -2,9 +2,9 @@
 
 Multiple producer multiple consumer c++11 queue / ringbuffer using C++11 atomics.
 
-Solves the ABA problem by packing a monotonically increasing version number into the offsets.
+Implements 2-phase ordered writes by packing a monotonically increasing version number into the queue front and back offsets (solves ABA problem). Contended case is detected due to version counter increment not being visible in front or back offsets. Front and back offsets only increase in the common case and buffer offset are calculated modulus the queue size (however the offset overflow special case is handled).
 
-- queue_atomic_v3 is completely lock free in the single producer single consumer case
+- queue_atomic_v3 is completely lockless in the single producer single consumer case
 - all queues can be used in multiple producer multiple consumer mode however they will spin calling std::this_thread::yield() when there is contention
 
 ## Notes
@@ -16,11 +16,12 @@ Solves the ABA problem by packing a monotonically increasing version number into
 ### queue_atomic_v1
 
 - uses 2 atomic variables: version_counter and offset_pack
-- push_back reads 2 atomics: version_counter and offset_pack
-       and writes 2 atomics: version_counter and offset_pack
-- pop_front reads 2 atomics: version_counter and offset_pack
-       and writes 2 atomics: version_counter and offset_pack
-- front, back and version are packed into offset_pack
+- push_back reads 2 atomics: (version_counter and offset_pack)
+       and writes 2 atomics: (version_counter and offset_pack)
+- pop_front reads 2 atomics: (version_counter and offset_pack)
+       and writes 2 atomics: (version_counter and offset_pack)
+- uses monotonically increasing version during 2-phase ordered updates
+- version, front offset and back offset are packed into offset_pack
 - version is used for conflict detection during ordered writes
 - NOTE: suffers cache line contention with concurrent push and pop
 - NOTE: limited to 8388608 items
@@ -45,11 +46,13 @@ queue_atomic_v1::version_pack  = 0xffff000000000000
 ### queue_atomic_v2
 
  - uses 3 atomic variables: version_counter, version_back and version_front
- - push_back reads 3 atomics: version_counter, version_back and version_front
-        and writes 2 atomics: version_counter and version_back
- - pop_front reads 3 atomics: version_counter, version_back and version_front
-        and writes 2 atomics: version_counter and version_front
- - version plus back or front are packed into version_back and version_front
+ - push_back reads 3 atomics: (version_counter, version_back and version_front)
+        and writes 2 atomics: (version_counter and version_back)
+ - pop_front reads 3 atomics: (version_counter, version_back and version_front)
+        and writes 2 atomics: (version_counter and version_front)
+ - uses monotonically increasing version during 2-phase ordered updates
+ - version and back offset are packed into version_back
+ - version and front offset are packed into version_front
  - version is used for conflict detection during ordered writes
  * NOTE: suffers cache line contention with concurrent push and pop
  * NOTE: limited to 2147483648 items
@@ -70,12 +73,14 @@ queue_atomic_v2::version_mask  = 0x00000000ffffffff
 ### queue_atomic_v3
 
 - uses 4 atomic variables: version_counter_back, version_back, version_counter_front and version_front
-- push_back reads 3 atomics: version_counter_back, version_back and version_front
-       and writes 2 atomics: version_counter_back and version_back
-- pop_front reads 3 atomics: version_counter_front, version_back and version_front
-       and writes 2 atomics: version_counter_front and version_front
-- back version and front version are packed into version_back and version_front
-- back version and front version are used for conflict detection during ordered writes
+- push_back reads 3 atomics: (version_counter_back, version_back and version_front)
+       and writes 2 atomics: (version_counter_back and version_back)
+- pop_front reads 3 atomics: (version_counter_front, version_back and version_front)
+       and writes 2 atomics: (version_counter_front and version_front)
+- uses two separate monotonically increasing versions for front and back offsets
+- completely lockless in the single producer single consumer case
+- back version_back and back offset are packed into version_back
+- back version_front and front offset are packed into version_front
 * NOTE: limited to 2147483648 items
 ````
 queue_atomic_v3::is_lock_free  = 1
