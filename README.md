@@ -1,6 +1,6 @@
 # queue_atomic
 
-Multiple producer multiple consumer c++11 queue / ringbuffer using C++11 atomics.
+Multiple producer multiple consumer queue template using C++11 atomics.
 
 Solves the ABA problem and implements 2-phase ordered updates by packing a monotonically increasing version number into the queue front and back offsets. The contended case is detected by checking that the expected version counter is visible in the packed front and back offsets. During an update the version counter is checked against the offset version, if up-to-date the version counter is then atomically incremented, data is stored (push_back) or retrieved (pop_front) and in a second phase the front or back offset is atomically updated with the new version. Data only becomes visible in another thread when the version counter matchs the version packed into the front and back offsets. The front and back offsets always increase in the common case and buffer offsets are calculated modulus the queue size. The offset underflow wraparound special case is handled.
 
