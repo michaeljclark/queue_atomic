@@ -97,7 +97,7 @@ queue_atomic_v3::version_mask  = 0x00000000ffffffff
 
 ## Timings
 
-### -O3, OS X 10.10, Apple LLVM version 7.0.0 (clang-700.1.76), 22nm Ivy Bridge 2.7 GHz Intel Core i7
+- -O3, OS X 10.10, Apple LLVM version 7.0.0 (clang-700.1.76), 22nm Ivy Bridge 2.7 GHz Intel Core i7
 
 ````
 queue_implementation      threads iterations items/thread time(µs)    ops        op_time(µs)
@@ -117,7 +117,7 @@ queue_std_queue_mutex     8       10         1024         752439      81920     
 queue_std_vec_mutex       8       10         1024         760616      81920      9.284863
 ````
 
-### -O3, Linux 4.2.0-amd64, GCC 5.2.1, 45nm Bloomfield 3.33GHZ GHz Intel Core i7 975
+- -O3, Linux 4.2.0-amd64, GCC 5.2.1, 45nm Bloomfield 3.33GHZ GHz Intel Core i7 975
 
 ````
 queue_implementation      threads iterations items/thread time(µs)    ops        op_time(µs)
