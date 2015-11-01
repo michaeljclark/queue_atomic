@@ -682,17 +682,20 @@ struct test_queue
 
     void test_push_pop_threads_v1_contention()
     {
-        test_push_pop_threads<int,queue_atomic_v1<int,true>>("queue_atomic_v1:contention", 4, 1, 1024);
+        test_push_pop_threads<int,queue_atomic_v1<int,true>>("queue_atomic_v1:contention", 1, 10, 65536);
+        test_push_pop_threads<int,queue_atomic_v1<int,true>>("queue_atomic_v1:contention", 8, 1, 256);
     }
     
     void test_push_pop_threads_v2_contention()
     {
-        test_push_pop_threads<int,queue_atomic_v2<int,true>>("queue_atomic_v2:contention", 4, 1, 1024);
+        test_push_pop_threads<int,queue_atomic_v2<int,true>>("queue_atomic_v2:contention", 1, 10, 65536);
+        test_push_pop_threads<int,queue_atomic_v2<int,true>>("queue_atomic_v2:contention", 8, 1, 256);
     }
 
     void test_push_pop_threads_v3_contention()
     {
-        test_push_pop_threads<int,queue_atomic_v3<int,true>>("queue_atomic_v3:contention", 4, 1, 1024);
+        test_push_pop_threads<int,queue_atomic_v3<int,true>>("queue_atomic_v3:contention", 1, 10, 65536);
+        test_push_pop_threads<int,queue_atomic_v3<int,true>>("queue_atomic_v3:contention", 8, 1, 256);
     }
 };
 
@@ -713,10 +716,8 @@ int main(int argc, const char * argv[])
     tq.test_push_pop_threads_v1();
     tq.test_push_pop_threads_v2();
     tq.test_push_pop_threads_v3();
-#if 0
     tq.test_push_pop_threads_v1_contention();
     tq.test_push_pop_threads_v2_contention();
     tq.test_push_pop_threads_v3_contention();
-#endif
 }
 

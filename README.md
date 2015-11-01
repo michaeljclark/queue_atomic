@@ -4,6 +4,9 @@ Multiple producer multiple consumer c++11 queue / ringbuffer using C++11 atomics
 
 Solves the ABA problem by packing a monotonically increasing version number into the offsets.
 
+- queue_atomic_v3 is completely lock free in the single producer single consumer case
+- all queues can be used in multiple producer multiple consumer mode however they will spin calling std::this_thread::yield() when there is contention
+
 ## Notes
 
 ### queue_std_vec_mutex
