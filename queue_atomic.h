@@ -1,12 +1,12 @@
 //
-//  queue_atomic_v3.h
+//  queue_atomic.h
 //
 
-#ifndef queue_atomic_v3_h
-#define queue_atomic_v3_h
+#ifndef queue_atomic_h
+#define queue_atomic_h
 
 /*
- * queue_atomic_v3
+ * queue_atomic
  *
  *   - uses 4 atomic variables: counter_back, version_back, counter_front and version_front
  *
@@ -25,12 +25,12 @@
 template <typename T,
         const int debug_contention = false,
         typename ATOMIC_UINT = uint64_t,
-        const int OFFSET_BITS = 32,
-        const int VERSION_BITS = 32,
+        const int OFFSET_BITS = 48,
+        const int VERSION_BITS = 16,
         std::memory_order relaxed_memory_order = std::memory_order_relaxed,
         std::memory_order acquire_memory_order = std::memory_order_acquire,
         std::memory_order release_memory_order = std::memory_order_release>
-struct queue_atomic_v3
+struct queue_atomic
 {
     /* queue atomic type */
     
@@ -105,7 +105,7 @@ struct queue_atomic_v3
     size_t capacity()               { return size_limit; }
     
     
-    queue_atomic_v3(size_t size_limit) :
+    queue_atomic(size_t size_limit) :
         size_limit(size_limit),
         counter_back(0),
         version_back(pack_offset(0, 0)),
@@ -121,7 +121,7 @@ struct queue_atomic_v3
         assert(vec != nullptr);
     }
     
-    virtual ~queue_atomic_v3()
+    virtual ~queue_atomic()
     {
         delete [] vec;
     }
