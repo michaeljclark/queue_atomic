@@ -146,11 +146,45 @@ void test_push_pop_threads(const char* queue_type_name, const size_t num_threads
     }
     assert(check_count == num_items);
     
-    printf("test_push_pop_threads::%-25s num_threads=%-3lu iterations=%-5lu items_per_thread=%-9lu "
+    printf("test_push_pop_threads::%-20s num_threads=%-3lu iterations=%-5lu items_per_thread=%-9lu "
            "time(µs)=%-9llu ops=%-9llu op_time(µs)=%-9.6lf\n",
             queue_type_name, num_threads, iterations, items_per_thread,
             (u64)work_time_us, (u64)num_ops, (double)work_time_us / (double)num_ops);
 }
+
+template<typename item_type, typename queue_type>
+void test_push_pop_single(const char* queue_type_name, const size_t num_items)
+{
+    queue_type queue(num_items);
+
+    assert(queue.size() == 0);
+
+    // populate queue
+    const auto t1 = std::chrono::high_resolution_clock::now();
+    for (size_t i = 1; i <= num_items; i++) {
+        queue.push_back(item_type(i));
+    }
+    const auto t2 = std::chrono::high_resolution_clock::now();
+    
+    assert(queue.size() == num_items);
+    
+    // empty queue
+    for (size_t i = 1; i <= num_items; i++) {
+        queue.pop_front();
+    }
+    const auto t3 = std::chrono::high_resolution_clock::now();
+    
+    assert(queue.size() == 0);
+
+    uint64_t push_work_time_us = duration_cast<microseconds>(t2 - t1).count();
+    uint64_t pop_work_time_us = duration_cast<microseconds>(t3 - t2).count();
+
+    printf("test_push_pop_single::%-20s push_back num_items=%-9lu time(µs)=%-9llu ops=%-9llu op_time(µs)=%-9.6lf\n",
+           queue_type_name, num_items, (u64)push_work_time_us, (u64)num_items, (double)push_work_time_us / (double)num_items);
+    printf("test_push_pop_single::%-20s pop_front num_items=%-9lu time(µs)=%-9llu ops=%-9llu op_time(µs)=%-9.6lf\n",
+           queue_type_name, num_items, (u64)pop_work_time_us, (u64)num_items, (double)pop_work_time_us / (double)num_items);
+}
+
 
 
 /* test_queue */
@@ -309,6 +343,16 @@ struct test_queue
         assert(q.empty() == true);
         assert(q.full() == false);
     }
+    
+    void test_push_pop_single_queue_mutex()
+    {
+        test_push_pop_single<int,queue_std_mutex<int>>("queue_std_mutex", 8388608);
+    }
+    
+    void test_push_pop_single_queue_atomic()
+    {
+        test_push_pop_single<int,queue_atomic<int>>("queue_atomic", 8388608);
+    }
 
     void test_push_pop_threads_queue_mutex()
     {
@@ -340,6 +384,8 @@ int main(int argc, const char * argv[])
     tq.test_queue_constants();
     tq.test_empty_invariants();
     tq.test_push_pop();
+    tq.test_push_pop_single_queue_mutex();
+    tq.test_push_pop_single_queue_atomic();
     tq.test_push_pop_threads_queue_mutex();
     tq.test_push_pop_threads_queue_atomic();
     tq.test_push_pop_threads_queue_atomic_contention();
