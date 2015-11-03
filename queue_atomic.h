@@ -8,6 +8,10 @@
 /*
  * queue_atomic
  *
+ * Multiple producer multiple consumer queue template using C++11 atomics.
+ *
+ * Completely lockless in the single producer single consumer case.
+ *
  *   - uses 4 atomic variables: counter_back, version_back, counter_front and version_front
  *
  *   - push_back reads 3 atomics: counter_back, version_back and version_front
