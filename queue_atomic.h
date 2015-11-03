@@ -23,13 +23,13 @@
  */
 
 template <typename T,
-        const int debug_contention = false,
-        typename ATOMIC_UINT = uint64_t,
-        const int OFFSET_BITS = 48,
-        const int VERSION_BITS = 16,
-        std::memory_order relaxed_memory_order = std::memory_order_relaxed,
-        std::memory_order acquire_memory_order = std::memory_order_acquire,
-        std::memory_order release_memory_order = std::memory_order_release>
+          const int debug_contention = false,
+          typename ATOMIC_UINT = uint64_t,
+          const int OFFSET_BITS = 48,
+          const int VERSION_BITS = 16,
+          std::memory_order relaxed_memory_order = std::memory_order_relaxed,
+          std::memory_order acquire_memory_order = std::memory_order_acquire,
+          std::memory_order release_memory_order = std::memory_order_release>
 struct queue_atomic
 {
     /* queue atomic type */
@@ -69,6 +69,9 @@ struct queue_atomic
     
     static inline bool ispow2(size_t val) { return val && !(val & (val-1)); }
     
+    /*
+     * pack a version number and an offset into an unsigned atomic integer
+     */
     static inline const atomic_uint_t pack_offset(const atomic_uint_t version, const atomic_uint_t offset)
     {
         assert(version < version_limit);
@@ -76,21 +79,15 @@ struct queue_atomic
         return (version << version_shift) | (offset << offset_shift);
     }
     
-    static inline bool unpack_back_offsets(const atomic_uint_t counter_back, const atomic_uint_t back_pack,
-                                           atomic_uint_t &back_offset)
+    /*
+     * unpack a version number and offset and compare the version to a counter value
+     * returns true if the version in the counter matches the version packed in the offset
+     */
+    static inline bool unpack_offsets(const atomic_uint_t counter, const atomic_uint_t pack,
+                                      atomic_uint_t &offset)
     {
-        if (((back_pack >> version_shift) & version_mask) == (counter_back & version_mask)) {
-            back_offset = (back_pack >> offset_shift) & offset_mask;
-            return true;
-        }
-        return false;
-    }
-
-    static inline bool unpack_front_offsets(const atomic_uint_t counter_front, const atomic_uint_t front_pack,
-                                            atomic_uint_t &front_offset)
-    {
-        if (((front_pack >> version_shift) & version_mask) == (counter_front & version_mask)) {
-            front_offset = (front_pack >> offset_shift) & offset_mask;
+        if (((pack >> version_shift) & version_mask) == (counter & version_mask)) {
+            offset = (pack >> offset_shift) & offset_mask;
             return true;
         }
         return false;
@@ -131,7 +128,7 @@ struct queue_atomic
         atomic_uint_t back = (version_back >> offset_shift) & offset_mask;
         atomic_uint_t front = (version_front >> offset_shift) & offset_mask;
         
-        // return true if queue is empty
+        /* return true if queue is empty */
         return (front - back == size_limit);
     }
     
@@ -140,7 +137,7 @@ struct queue_atomic
         atomic_uint_t back = (version_back >> offset_shift) & offset_mask;
         atomic_uint_t front = (version_front >> offset_shift) & offset_mask;
 
-        // return true if queue is full
+        /* return true if queue is full */
         return (front == back);
     }
     
@@ -149,7 +146,7 @@ struct queue_atomic
         atomic_uint_t back = (version_back >> offset_shift) & offset_mask;
         atomic_uint_t front = (version_front >> offset_shift) & offset_mask;
 
-        // return queue size
+        /* return queue size */
         return (front < back) ? back - front : size_limit - front + back;
     }
     
@@ -160,30 +157,54 @@ struct queue_atomic
 
         int spin_count = 0;
         do {
-            // if back_version equals last_back_version then attempt push back
+            /*
+             * if packed version equals counter_back then attempt push back
+             *
+             * this is where we detect if another thread is in the push back
+             * critical section and we only proceed if the versions are consistent:
+             *
+             *     i.e. counter_back == version_back >> version_shift & version_mask
+             */
             atomic_uint_t _counter_back = counter_back.load(relaxed_memory_order);
             atomic_uint_t _version_back = version_back.load(relaxed_memory_order);
-            if (unpack_back_offsets(_counter_back, _version_back, back))
+            if (unpack_offsets(_counter_back, _version_back, back))
             {
-                // if (full) return false;
+                /* if (full) return false; */
                 if (front == back) return false;
                 
-                // increment back_version
+                /* create new back version */
                 atomic_uint_t new_back_version = (_counter_back + 1) & version_mask;
                 
-                // calculate store offset and update back
+                /* calculate store offset and update back */
                 size_t offset = back++ & (size_limit - 1);
                 
-                // pack back_version and back
+                /* pack new back version and back offset */
                 atomic_uint_t pack = pack_offset(new_back_version, back & (offset_limit - 1));
                 
-                // compare_exchange_weak to attempt to update the counter
-                // if successful other threads will spin until new version_back is visible
-                // if successful then write value followed by version_back
-                if (counter_back.compare_exchange_weak(_counter_back, new_back_version, std::memory_order_acq_rel)) {
+                /*
+                 * compare_exchange_weak and attempt to update the counter with the new version
+                 *
+                 * this is where we enter the critical section:
+                 *
+                 *     i.e. counter_back != version_back >> version_shift & version_mask
+                 *     for a brief number of instructions until we write the new version_back
+                 *
+                 * if successful other threads will spin until new version_back is visible
+                 * if successful we write the value followed by writing a new version_back
+                 * to leave the critical section
+                 */
+                if (counter_back.compare_exchange_weak(_counter_back, new_back_version, std::memory_order_acq_rel))
+                {
                     vec[offset].store(elem, release_memory_order);
+
+                    /*
+                     * exit the critical section and reveal the new back offset to other threads
+                     *
+                     *    i.e. counter_front == version_front >> version_shift & version_mask
+                     */
                     version_back.store(pack, release_memory_order);
                     return true;
+                    
                 } else if (debug_contention) {
                     uint64_t _tsc = rdtsc();
                     log_debug("%s version=%llu time=%llu spin_count=%d thread:%p phase 2 contention",
@@ -196,8 +217,13 @@ struct queue_atomic
                               __func__, _counter_back, _tsc, spin_count, std::this_thread::get_id());
                 }
             }
-            
-            // yield the thread before retrying
+
+            /*
+             * if we reach here then we detected an inconsistent version in phase 1 prepare
+             * or failed to update the counter to enter the critical section in phase 2
+             */
+
+            /* yield the thread before retrying */
             if (spin_limit > tight_spin_limit) {
                 std::this_thread::yield();
             }
@@ -218,30 +244,54 @@ struct queue_atomic
         
         int spin_count = 0;
         do {
-            // if front_version equals last_front_version then attempt pop front
+            /*
+             * if packed version equals counter_front then attempt pop front
+             *
+             * this is where we detect if another thread is in the pop front
+             * critical section and we only proceed if the versions are consistent:
+             *
+             *     i.e. counter_front == version_front >> version_shift & version_mask
+             */
             atomic_uint_t _counter_front = counter_front.load(relaxed_memory_order);
             atomic_uint_t _version_front = version_front.load(relaxed_memory_order);
-            if (unpack_front_offsets(_counter_front, _version_front, front))
+            if (unpack_offsets(_counter_front, _version_front, front))
             {
-                // if (empty) return nullptr;
+                /* if (empty) return nullptr; */
                 if (front - back == size_limit) return T(0);
                 
-                // increment front_version
+                /* create new front version */
                 atomic_uint_t new_front_version = (_counter_front + 1) & version_mask;
                 
-                // calculate offset and update front
+                /* calculate offset and update front */
                 size_t offset = front++ & (size_limit - 1);
                 
-                // pack front_version and front
+                /* pack new front version and front offset */
                 atomic_uint_t pack = pack_offset(new_front_version, front & (offset_limit - 1));
                 
-                // compare_exchange_weak to attempt to update the counter
-                // if successful other threads will spin until new version_front is visible
-                // if successful then write version_front
-                if (counter_front.compare_exchange_weak(_counter_front, new_front_version, std::memory_order_acq_rel)) {
+                /*
+                 * compare_exchange_weak and attempt to update the counter with the new version
+                 *
+                 * this is where we enter the critical section:
+                 *
+                 *     i.e. counter_front != version_front >> version_shift & version_mask
+                 *     for a brief number of instructions until we write the new version_front
+                 *
+                 * if successful other threads will spin until new version_front is visible
+                 * if successful we read the value followed by writing a new version_front
+                 * to leave the critical section
+                 */
+                if (counter_front.compare_exchange_weak(_counter_front, new_front_version, std::memory_order_acq_rel))
+                {
                     T val = vec[offset].load(acquire_memory_order);
+                    
+                    /*
+                     * exit the critical section and reveal the new front offset to other threads
+                     *
+                     *    i.e. counter_front == version_front >> version_shift & version_mask
+                     */
                     version_front.store(pack, release_memory_order);
                     return val;
+                    
                 } else if (debug_contention) {
                     uint64_t _tsc = rdtsc();
                     log_debug("%s version=%llu time=%llu spin_count=%d thread:%p phase 2 contention",
@@ -255,7 +305,12 @@ struct queue_atomic
                 }
             }
             
-            // yield the thread before retrying
+            /*
+             * if we reach here then we detected an inconsistent version in phase 1 prepare
+             * or failed to update the counter to enter the critical section in phase 2
+             */
+            
+            /* yield the thread before retrying */
             if (spin_limit > tight_spin_limit) {
                 std::this_thread::yield();
             }
