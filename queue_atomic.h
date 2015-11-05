@@ -69,7 +69,7 @@ struct queue_atomic
     
     /* queue storage */
     
-    atomic_item_t *vec;
+    ALIGNED(64) atomic_item_t *vec;
     const atomic_uint_t size_limit;
     ALIGNED(64) std::atomic<atomic_uint_t> counter_back;
     std::atomic<atomic_uint_t> version_back;
