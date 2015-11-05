@@ -26,6 +26,14 @@
  *
  */
 
+#if defined(_MSC_VER)
+#define ALIGNED(x) __declspec(align(x))
+#elif defined(__GNUC__)
+#define ALIGNED(x) __attribute__((aligned(x)))
+#else
+#define ALIGNED(x)
+#endif
+
 template <typename T,
           const int debug_contention = false,
           typename ATOMIC_UINT = uint64_t,
@@ -63,9 +71,9 @@ struct queue_atomic
     
     atomic_item_t *vec;
     const atomic_uint_t size_limit;
-    std::atomic<atomic_uint_t> counter_back __attribute__ ((aligned (64)));
+    ALIGNED(64) std::atomic<atomic_uint_t> counter_back;
     std::atomic<atomic_uint_t> version_back;
-    std::atomic<atomic_uint_t> counter_front __attribute__ ((aligned (64)));
+    ALIGNED(64) std::atomic<atomic_uint_t> counter_front;
     std::atomic<atomic_uint_t> version_front;
     
     
