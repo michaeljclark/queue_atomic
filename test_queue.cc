@@ -146,10 +146,16 @@ void test_push_pop_threads(const char* queue_type_name, const size_t num_threads
     }
     assert(check_count == num_items);
     
-    printf("test_push_pop_threads::%-20s num_threads=%-3lu iterations=%-5lu items_per_thread=%-9lu "
-           "time(µs)=%-9llu ops=%-9llu op_time(µs)=%-9.6lf\n",
+    printf("%-20s %-9zu %-9zu %-9zu %-9llu %-9llu %-9.6lf\n",
             queue_type_name, num_threads, iterations, items_per_thread,
             (u64)work_time_us, (u64)num_ops, (double)work_time_us / (double)num_ops);
+}
+
+static void heading_multi()
+{
+    printf("%-20s %-9s %-9s %-9s %-9s %-9s %-9s\n",
+            "name", "nthreads", "iters", "items",
+            "time(us)", "op_count", "op(us)");
 }
 
 template<typename item_type, typename queue_type>
@@ -179,13 +185,19 @@ void test_push_pop_single(const char* queue_type_name, const size_t num_items)
     uint64_t push_work_time_us = duration_cast<microseconds>(t2 - t1).count();
     uint64_t pop_work_time_us = duration_cast<microseconds>(t3 - t2).count();
 
-    printf("test_push_pop_single::%-20s push_back num_items=%-9lu time(µs)=%-9llu ops=%-9llu op_time(µs)=%-9.6lf\n",
-           queue_type_name, num_items, (u64)push_work_time_us, (u64)num_items, (double)push_work_time_us / (double)num_items);
-    printf("test_push_pop_single::%-20s pop_front num_items=%-9lu time(µs)=%-9llu ops=%-9llu op_time(µs)=%-9.6lf\n",
-           queue_type_name, num_items, (u64)pop_work_time_us, (u64)num_items, (double)pop_work_time_us / (double)num_items);
+    printf("%-20s %-9zu %-9llu %-9llu %-9.6lf\n",
+           queue_type_name, num_items, (u64)push_work_time_us, (u64)num_items,
+           (double)push_work_time_us / (double)num_items);
+    printf("%-20s %-9zu %-9llu %-9llu %-9.6lf\n",
+           queue_type_name, num_items, (u64)pop_work_time_us, (u64)num_items,
+           (double)pop_work_time_us / (double)num_items);
 }
 
-
+static void heading_single()
+{
+    printf("%-20s %-9s %-9s %-9s %-9s\n",
+            "name", "items", "time(us)", "op_count", "op(us)");
+}
 
 /* test_queue */
 
@@ -381,13 +393,20 @@ struct test_queue
 int main(int argc, const char * argv[])
 {
     test_queue tq;
+    printf("# unit-tests\n");
     tq.test_queue_constants();
     tq.test_empty_invariants();
     tq.test_push_pop();
+    printf("# single-thread\n");
+    heading_single();
     tq.test_push_pop_single_queue_mutex();
     tq.test_push_pop_single_queue_atomic();
+    printf("# multi-thread\n");
+    heading_multi();
     tq.test_push_pop_threads_queue_mutex();
     tq.test_push_pop_threads_queue_atomic();
+    printf("# contention tests\n");
+    heading_multi();
     tq.test_push_pop_threads_queue_atomic_contention();
 }
 
