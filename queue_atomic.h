@@ -159,7 +159,7 @@ struct queue_atomic
         atomic_uint_t front = (version_front >> offset_shift) & offset_mask;
 
         /* return queue size */
-        return (front < back) ? back - front : size_limit - front + back;
+        return size_limit - front + back;
     }
     
     bool push_back(T elem)
